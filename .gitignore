@@ -5,4 +5,5 @@
 !.gitignore
 !LICENCE
 !README.md
-!LWdn.py
+!main.py
+!radpy.py
