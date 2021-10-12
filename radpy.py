@@ -118,7 +118,8 @@ def calc_solar_position(t_local_hour, kwargs):
         ax.plot(t_local_hour, ET)
         ax.set_xlabel('$t_{hour}$')
         ax.set_ylabel('$ET$, min')
-        fname = os.path.join(kwargs['plot_folder_path'], 'ET.png')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_ET.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
         
@@ -127,7 +128,8 @@ def calc_solar_position(t_local_hour, kwargs):
         ax.plot(t_local_hour, delta_deg)
         ax.set_xlabel('$t_{hour}$')
         ax.set_ylabel('$\delta, \degree$')
-        fname = os.path.join(kwargs['plot_folder_path'], 'delta_deg.png')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_delta_deg.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
         
@@ -136,7 +138,8 @@ def calc_solar_position(t_local_hour, kwargs):
         ax.plot(t_local_hour, beta_deg)
         ax.set_xlabel('$t_{hour}$')
         ax.set_ylabel('$\\beta, \degree$')
-        fname = os.path.join(kwargs['plot_folder_path'], 'beta_deg.png')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_beta_deg.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
         
@@ -145,7 +148,8 @@ def calc_solar_position(t_local_hour, kwargs):
         ax.plot(t_local_hour, phi_deg)
         ax.set_xlabel('$t_{hour}$')
         ax.set_ylabel('$\phi, \degree$')
-        fname = os.path.join(kwargs['plot_folder_path'], 'phi_deg.png')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_phi_deg.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
     
@@ -179,7 +183,8 @@ def calc_extraterrestrial_radiant_flux(t_local_hour, kwargs):
         ax.plot(t_local_hour, E_o)
         ax.set_xlabel('$t_{hour}$')
         ax.set_ylabel('$E_o$, W/m$^2$')
-        fname = os.path.join(kwargs['plot_folder_path'], 'E_o.png')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_E_o.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
     
@@ -189,8 +194,81 @@ def calc_extraterrestrial_radiant_flux(t_local_hour, kwargs):
 
 
 
-def calc_Rglob_vs_Rmax():
-    pass
+def calc_clearness_index(R_glob, R_hor_max):
+    # Two values per day, then interpolate
+    
+    n_days = len(R_glob) // 24
+    
+    S_day = []
+    t_day = []
+    
+    for idx_day in range(n_days):
+        # loop through data in 24 hour steps
+        
+        # start and end indexis for morning and afternoon
+        idx_morning_start = idx_day*24
+        idx_morning_end = idx_day*24 + 13
+        idx_afternoon_start = idx_day*24 + 13
+        idx_afternoon_end = idx_day*24 + 24
+        
+        # Take global radiation and no-atmosphere horizontal radiation to 
+        # separate variables
+        R_glob_morning = R_glob[idx_morning_start:idx_morning_end]
+        R_glob_afternoon = R_glob[idx_afternoon_start:idx_afternoon_end]
+        R_hor_max_morning = R_hor_max[idx_morning_start:idx_morning_end]
+        R_hor_max_afternoon = R_hor_max[idx_afternoon_start:idx_afternoon_end]
+        
+        # Calculate the number of hours (integer value) that the sun would 
+        # ideally be above the horizon 
+        n_hours_above_horizon_morning = len( R_hor_max_morning[R_hor_max_morning > 5.0] )
+        n_hours_above_horizon_afternoon = len( R_hor_max_afternoon[R_hor_max_afternoon > 5.0] )
+        
+        if n_hours_above_horizon_morning == 0:
+            # If the sun doesn't rise above the horizon, use NaN
+            #S_day.append(np.nan)
+            #S_day.append(np.nan)
+            S_day.append(0.5)
+            S_day.append(0.5)
+            
+            
+            t_day.append(idx_day*24+12)
+            t_day.append(idx_day*24+13)
+        
+        else:
+            # If the sun does rise above the horizon in a particular day,
+            # calculate the mean radiation for daylight time and its quotient
+            dummy_morning_nominator = np.sum(R_glob_morning[R_glob_morning>0.0]) / n_hours_above_horizon_morning
+            dummy_morning_denominator = np.sum(R_hor_max_morning[R_hor_max_morning>0.0]) / n_hours_above_horizon_morning
+            dummy_morning = dummy_morning_nominator / dummy_morning_denominator
+            
+            dummy_afternoon_nominator = np.sum(R_glob_afternoon[R_glob_afternoon>0.0]) / n_hours_above_horizon_afternoon
+            dummy_afternoon_denominator = np.sum(R_hor_max_afternoon[R_hor_max_afternoon>0.0]) / n_hours_above_horizon_afternoon
+            dummy_afternoon = dummy_afternoon_nominator / dummy_afternoon_denominator
+            
+            S_day.append(dummy_morning)
+            S_day.append(dummy_afternoon)
+            t_day.append(idx_day*24 + 12 - n_hours_above_horizon_morning/2.0)
+            t_day.append(idx_day*24 + 13 + n_hours_above_horizon_afternoon/2.0)
+            
+            
+    # After we know the two-times-per-day vaues, interpolate the data to
+    # hourly values
+    
+    x = np.arange(len(R_glob))
+    xp = np.array(t_day)
+    fp = np.array(S_day)
+    S_hourly = np.interp(x, xp, fp)
+    
+    return(S_hourly)
+
+        
+        
+
+
+
+
+        
+    
 
 
 
