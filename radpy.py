@@ -2,8 +2,14 @@
 """
 Created on Fri Oct  8 22:46:41 2021
 
+Source: ASHRAE Handbook Fundamentals 2017
+
 @author: laukkara
 
+# Van 	60.33	24.96	51
+# Jok 	60.81	23.5	104
+# Jyv 	62.4	25.67	139
+# Sod 	67.37	26.63	179
 
 
 # 'plot_folder_path': './output_plots'
@@ -14,9 +20,10 @@ t_local_hour = np.arange(8760)
 kwargs = {'LAT_deg': 65.0,
           'LON_deg': 24.5,
           'tz': 2.0,
-          'plot_folder_path': None}
+          'plot_folder_path': None,
+          'plot_file_name': 'Toni'}
 
-radpy.calc_slar_position(t_local_hour, kwargs)
+radpy.calc_solar_position(t_local_hour, kwargs)
 
 """
 
@@ -107,8 +114,7 @@ def calc_solar_position(t_local_hour, kwargs):
     
     ## make plots
     
-    if kwargs['plot_folder_path'] is not None:
-        # If path is given, make the plots
+    if kwargs['plot_figures_bool']:
         
         if not os.path.exists(kwargs['plot_folder_path']):
             os.makedirs(kwargs['plot_folder_path'])
@@ -123,6 +129,7 @@ def calc_solar_position(t_local_hour, kwargs):
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
         
+        
         # declimation
         fig, ax = plt.subplots()
         ax.plot(t_local_hour, delta_deg)
@@ -132,6 +139,7 @@ def calc_solar_position(t_local_hour, kwargs):
                              kwargs['plot_file_name'] + '_delta_deg.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
+        
         
         # local solar altitude angle beta, positive when sun is above horizon
         fig, ax = plt.subplots()
@@ -143,6 +151,7 @@ def calc_solar_position(t_local_hour, kwargs):
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
         
+        
         # local azimuth angle phi, positive in the afternoon
         fig, ax = plt.subplots()
         ax.plot(t_local_hour, phi_deg)
@@ -152,8 +161,28 @@ def calc_solar_position(t_local_hour, kwargs):
                              kwargs['plot_file_name'] + '_phi_deg.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
-    
-    
+        
+        
+        
+    if kwargs['make_csv_files_bool']:
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
+        
+        # export sun position data to csv file
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_sun_position_angles.csv')
+        np.savetxt(fname,
+                   np.column_stack((t_local_hour,
+                                    ET,
+                                    delta_deg,
+                                    beta_deg,
+                                    phi_deg)),
+                   fmt='%-10.3f',
+                   delimiter=',',
+                   comments='',
+                   header='t_local_hour, ET_minutes, delta_deg, beta_deg, phi_deg')
+        
     # Return
     return(beta_deg, phi_deg)
 
@@ -172,7 +201,7 @@ def calc_extraterrestrial_radiant_flux(t_local_hour, kwargs):
     E_o = E_sc * (1.0 + 0.033 * np.cos(2*np.pi*((n_day-3)/365.0)))
 
 
-    if kwargs['plot_folder_path'] is not None:
+    if kwargs['plot_figures_bool']:
         # If path is given, make the plots
         
         if not os.path.exists(kwargs['plot_folder_path']):
@@ -187,6 +216,20 @@ def calc_extraterrestrial_radiant_flux(t_local_hour, kwargs):
                              kwargs['plot_file_name'] + '_E_o.png')
         fig.savefig(fname, dpi=100, bbox_inches='tight')
         plt.close(fig)
+        
+        
+        
+    if kwargs['make_csv_files_bool']:
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
+        
+        np.savetxt(fname.replace('png', 'csv'),
+                   np.column_stack((t_local_hour, E_o)),
+                   fmt='%-10.3f',
+                   delimiter=',',
+                   header='t_local_hour, E_0_W_per_m2')
+        
     
     return(E_o)
 
@@ -261,15 +304,215 @@ def calc_clearness_index(R_glob, R_hor_max):
     
     return(S_hourly)
 
+
+        
+def calc_angle_of_incidence(t_local_hour, kwargs):
+    # kwargs for this function contains the same
+    # dict keywords than what are needed for the 
+    # calc_solar_position() function
+    
+    # Additional keyword arguments are:
+    # phi_deg = solar azimuth
+    # psi_deg = surface azimuth angle, positive to west from south
+    # gamma_deg = surface-solar azimuth
+    # Sigma_deg = tilt angle, 0 deg for horizontal, 90 deg for vertical surface
+    # theta_deg = angle of incidence, angle between
+    # surface normal and earth-sun line
+    
+    ## Angle of incidence
+    beta_deg, phi_deg = calc_solar_position(t_local_hour, kwargs)
+    
+    gamma_deg = phi_deg - kwargs['psi_deg']
+    
+    beta_rad = beta_deg * (np.pi/180.0)
+    gamma_rad = gamma_deg * (np.pi/180.0)
+    Sigma_rad = kwargs['Sigma_deg'] * (np.pi/180.0)
+    
+    cos_theta = np.cos(beta_rad) \
+                * np.cos(gamma_rad) \
+                * np.sin(Sigma_rad) \
+                + np.sin(beta_rad) \
+                * np.cos(Sigma_rad)
+    
+    theta_rad = np.arccos(cos_theta)
+    theta_deg = theta_rad * (180.0/np.pi)
+    
+    
+    # theta_limited to -90...90 deg
+    theta_deg_limited = np.zeros(theta_deg.shape)
+    cos_theta = np.zeros(theta_deg.shape)
+    
+    bool_conditions = (beta_deg > 0.0) \
+                        & (gamma_deg >-90.0) \
+                        & (gamma_deg < 90.0)
+    
+    for idx in range(len(theta_deg)):
+        
+        if bool_conditions[idx]:
+            # sun is shining towards the surface
+            theta_deg_limited[idx] = theta_deg[idx]
+            cos_theta[idx] = np.cos(theta_deg[idx] * (np.pi/180.0))
+        else:
+            # sun is not shining towards the surface
+            theta_deg_limited[idx] = 90.0
+            cos_theta[idx] = 0.0
+    
+    
+    if kwargs['plot_figures_bool']:
+        # If path is given, make the plots
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
         
         
+        # gamma_deg
+        fig, ax = plt.subplots()
+        ax.plot(t_local_hour, gamma_deg)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$\gamma$, $\degree$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_gamma_deg.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+        
 
-
-
-
+        # theta_deg
+        fig, ax = plt.subplots()
+        ax.plot(t_local_hour, theta_deg)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$\\theta$, $\degree$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_theta_deg.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
         
     
+    
+        # theta_deg_limited
+        fig, ax = plt.subplots()
+        ax.plot(t_local_hour, theta_deg_limited)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$\\theta$, -90...90 $\degree$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_theta_deg_limited.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+        
+
+    if kwargs['make_csv_files_bool']:
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
+        
+        # to csv
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_incidence_angles.csv')
+        np.savetxt(fname,
+                   np.column_stack((gamma_deg,
+                                    theta_deg,
+                                    theta_deg_limited,
+                                    cos_theta)),
+                   fmt='%-10.3f',
+                   delimiter=',',
+                   header='gamma_deg, theta_deg, theta_deg_limited, cos_theta')
 
 
+    return(beta_deg, phi_deg, gamma_deg, theta_deg, theta_deg_limited, cos_theta)
+
+    
+
+def calc_solar_components_to_surface(t_local_hour, Rbeam, Rdif, Rglob,
+                                     theta_deg_limited,
+                                     kwargs):
+    
+    Sigma_deg = kwargs['Sigma_deg']
+    
+    
+    # Calculate the sum of incoming radiation to surface
+    # According to WUFI equations
+    
+    # beam
+    k_cos = np.cos(theta_deg_limited * (np.pi/180.0))
+    E_beam_surf = Rbeam * k_cos
+    
+    # dif
+    g_atm = ( np.cos(Sigma_deg * (np.pi/180.0) / 2.0) )**2
+    E_dif_surf = g_atm * Rdif
+    
+    # refl
+    g_terr = 1.0 - g_atm
+    E_refl_surf = g_terr * 0.2 * Rglob
+    
+    # total
+    E_surf = E_beam_surf + E_dif_surf + E_refl_surf
+    
+    
+    
+    if kwargs['plot_figures_bool']:
+        # If path is given, make the plots
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
+            
+        
+        fig, ax = plt.subplots()
+        ax.plot(E_beam_surf)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$E_{beam,surf}$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_E_beam_surf.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+
+        
+        fig, ax = plt.subplots()
+        ax.plot(E_dif_surf)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$E_{dif,surf}$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_E_dif_surf.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
 
+        fig, ax = plt.subplots()
+        ax.plot(E_refl_surf)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$E_{refl,surf}$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_E_refl_surf.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+
+
+        fig, ax = plt.subplots()
+        ax.plot(E_surf)
+        ax.set_xlabel('$t_{hour}$')
+        ax.set_ylabel('$E_{surf}$')
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_E_surf.png')
+        fig.savefig(fname, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+
+
+    if kwargs['make_csv_files_bool']:
+        
+        if not os.path.exists(kwargs['plot_folder_path']):
+            os.makedirs(kwargs['plot_folder_path'])
+        
+        # to csv
+        fname = os.path.join(kwargs['plot_folder_path'],
+                             kwargs['plot_file_name'] + '_W_per_m2_values.csv')
+        np.savetxt(fname,
+                   np.column_stack((t_local_hour,
+                                    E_beam_surf,
+                                    E_dif_surf,
+                                    E_refl_surf,
+                                    E_surf)),
+                   fmt='%-12.2f',
+                   delimiter=',',
+                   comments='',
+                   header='t_local_hour, E_beam_surf, E_dif_surf, E_refl_surf, E_surf')
+
+    
+    return(E_beam_surf, E_dif_surf, E_refl_surf, E_surf)

@@ -34,11 +34,39 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
 
 
+################################
+
+## Input data
+with open('./input/data_RASMI.pickle', 'rb') as f:
+    data = pickle.load(f)
+
+
+output_folder = r'./output'
+
+if not os.path.isdir(output_folder):
+    os.makedirs(output_folder)
+
+
+# Van, Jok, Jyv, Sod
+location = 'Jok'
+
+# 
+clim = location + '_1989-2018'
+
+t_now_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+log_file = os.path.join(output_folder,
+                        'log_' + clim + '_' + t_now_str + '.txt')
+f_log = open(log_file, 'w')
+
+print('Start!', file=f_log)
+
+
+
 #################################
 
-def MPW(T_e, T_dew, K_0):
+def K_model(T_e, T_dew, K_0):
     # [T_e] = degC, [T_dew] = degC, K_0 is clearness index [0...1]
-    print('Initiating MPW...')
+    print('Initiating K-model...')
     
     sigma_SB = 5.67e-8
     
@@ -60,11 +88,11 @@ def MPW(T_e, T_dew, K_0):
     fig, ax = plt.subplots()
     ax.plot(epsilon_sky)
 
-    LW_dn_MPW = epsilon_sky * sigma_SB * (T_e + 273.15)**4
+    LW_dn_K_model = epsilon_sky * sigma_SB * (T_e + 273.15)**4
     
-    print('Finished MPW!')
+    print('Finished K-model!')
     
-    return(LW_dn_MPW)
+    return(LW_dn_K_model)
 
 
 
@@ -96,13 +124,17 @@ def create_X_y(data, clim, LAT_deg, LON_deg):
                       'LON_deg': LON_deg,
                       'tz': 2.0,
                       'plot_folder_path': 'output',
-                      'plot_file_name': clim}
+                      'plot_file_name': clim,
+                      'plot_figures_bool': False,
+                      'make_csv_files_bool': False}
     beta_deg, phi_deg = radpy.calc_solar_position(t_local_hour,
                                                   kwargs_betaphi)
     beta_rad = beta_deg * (np.pi/180.0)
     
     kwargs_Eo = {'plot_folder_path': 'output',
-                 'plot_file_name': clim}
+                 'plot_file_name': clim,
+                 'plot_figures_bool': False,
+                 'make_csv_files_bool': False}
     E_o = radpy.calc_extraterrestrial_radiant_flux(t_local_hour,
                                                    kwargs_Eo)
     
@@ -145,8 +177,8 @@ def plot_scatter(y_measured, y_predicted, output_folder, clim, ml_model):
     fig, ax = plt.subplots()
     ax.plot(y_measured, y_predicted, '.', ms=0.4)
     ax.plot([150,400],[150,400])
-    ax.set_xlabel('measured, W/m$^2$')
-    ax.set_ylabel('predicted, W/m$^2$')
+    ax.set_xlabel('ERA5, W/m$^2$')
+    ax.set_ylabel('Predicted, W/m$^2$')
     ax.grid(True)
     ax.set_axisbelow(True)
     plt.title(ml_model)
@@ -161,7 +193,7 @@ def plot_timeseries(y_measured, y_predicted, output_folder, clim, ml_model):
             np.arange(8760), y_predicted[-8760:], linewidth=0.6)
     ax.set_xlabel('t, h')
     ax.set_ylabel('LWdn, W/m$^2$')
-    ax.legend(['measured','predicted'])
+    ax.legend(['ERA5','Predicted'])
     ax.grid(True)
     ax.set_axisbelow(True)
     plt.title(ml_model)
@@ -174,7 +206,7 @@ def plot_ecdf(y_measured, y_predicted, output_folder, clim, ml_model):
     sns.ecdfplot(x=y_measured.ravel(), ax=ax)
     sns.ecdfplot(x=y_predicted.ravel(), ax=ax)
     ax.set_xlabel('LWdn, W/m$^2$')
-    ax.legend(['measured','predicted'])
+    ax.legend(['ERA5','Predicted'])
     ax.grid(True)
     ax.set_axisbelow(True)
     plt.title(ml_model)
@@ -239,8 +271,8 @@ def calculate_monthly_means(y, climate_name, log_file_handle):
     
     print('\n', file=log_file_handle)
     
-    print(X.mean(axis=1))
-    print(X.mean(axis=1), file=log_file_handle)
+    print(X.mean(axis=1).round(2))
+    np.savetxt(log_file_handle, X.mean(axis=1), fmt='%.2f')
     
     print('\n')
     print('\n', file=log_file_handle)
@@ -259,33 +291,8 @@ def export_LWdn_to_csv(y, output_folder, climate_name):
 #################################
 
 
-## Input data
-with open('./input/data_RASMI.pickle', 'rb') as f:
-    data = pickle.load(f)
 
 
-output_folder = r'./output'
-
-if not os.path.isdir(output_folder):
-    os.makedirs(output_folder)
-
-
-location = 'Sod'
-
-clim = location + '_1989-2018'
-
-t_now_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-log_file = os.path.join(output_folder,
-                        'log_' + clim + t_now_str + '.txt')
-f_log = open(log_file, 'w')
-
-print('Start!', file=f_log)
-
-
-# Van 	60.33	24.96	51
-# Jok 	60.81	23.5	104
-# Jyv 	62.4	25.67	139
-# Sod 	67.37	26.63	179
 
 if 'Van' in clim:
     LAT_deg = 60.33
@@ -361,11 +368,11 @@ plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 
 
 
-# Mundt-Petersen & Wallenten
-ml_model = 'MPW'
+# Wallenten
+ml_model = 'K-model'
 print(ml_model)
 print(ml_model, file=f_log)
-y_pred[ml_model] = MPW(X_test[:, 0], X_test[:, 1], X_test[:,-1])
+y_pred[ml_model] = K_model(X_test[:, 0], X_test[:, 1], X_test[:,-1])
 
 print_to_screen_and_file(y_test, y_pred[ml_model], f_log)
 plot_scatter(y_test, y_pred[ml_model], output_folder, clim, ml_model)
@@ -431,6 +438,7 @@ plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 
 
 # Random Forest
+t_start = datetime.datetime.now()
 ml_model = 'RandomForestRegressor'
 print(ml_model)
 print(ml_model, file=f_log)
@@ -443,7 +451,7 @@ param_distributions = {'n_estimators': ss_randint(10, 50),
 tss = TimeSeriesSplit(n_splits=5)
 model = RandomizedSearchCV(estimator=reg_model,
                         param_distributions=param_distributions,
-                        n_iter=20,
+                        n_iter=500,
                         cv=tss,
                         scoring='neg_mean_absolute_error',
                         n_jobs=-1,
@@ -458,7 +466,9 @@ print_to_screen_and_file(y_test, y_pred[ml_model], f_log)
 plot_scatter(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_timeseries(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
-
+t_end = datetime.datetime.now()
+t_duration = t_end - t_start
+print('Random Forest time:', t_duration.total_seconds()/60, 'min')
 
 
 
@@ -466,6 +476,7 @@ plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 
 
 # xgboost
+t_start = datetime.datetime.now()
 ml_model = 'XGBRegressor'
 print(ml_model)
 print(ml_model, file=f_log)
@@ -480,7 +491,7 @@ param_distributions = {'n_estimators': ss_randint(50, 200),
 tss = TimeSeriesSplit(n_splits=5)
 model = RandomizedSearchCV(estimator=reg_model,
                         param_distributions=param_distributions,
-                        n_iter=20,
+                        n_iter=50,
                         cv=tss,
                         scoring='neg_mean_absolute_error',
                         n_jobs=-1,
@@ -495,7 +506,9 @@ print_to_screen_and_file(y_test, y_pred[ml_model], f_log)
 plot_scatter(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_timeseries(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
-
+t_end = datetime.datetime.now()
+t_duration = t_end - t_start
+print('xgboost time:', t_duration.total_seconds()/60, 'min')
 
 
 
@@ -504,6 +517,7 @@ plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 
 
 # lightgbm
+t_start = datetime.datetime.now()
 ml_model = 'LGBMRegressor'
 print(ml_model)
 print(ml_model, file=f_log)
@@ -517,7 +531,7 @@ param_distributions = {'boosting_type': ['dart'],
 tss = TimeSeriesSplit(n_splits=5)
 model = RandomizedSearchCV(estimator=reg_model,
                         param_distributions=param_distributions,
-                        n_iter=20,
+                        n_iter=100,
                         cv=tss,
                         scoring='neg_mean_absolute_error',
                         n_jobs=-1,
@@ -532,7 +546,9 @@ print_to_screen_and_file(y_test, y_pred[ml_model], f_log)
 plot_scatter(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_timeseries(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
-
+t_end = datetime.datetime.now()
+t_duration = t_end - t_start
+print('lgbm time:', t_duration.total_seconds()/60, 'min')
 
 
 
@@ -546,6 +562,7 @@ plot_ecdf(y_test, y_pred[ml_model], output_folder, clim, ml_model)
 ## Predict LWdn for future climates
 
 # Make predictions
+print('Make predictions...')
 for key in data:
     if location in key and 'RCP' in key:
         # We have a future climate
@@ -561,6 +578,7 @@ for key in data:
         
         
 # Make plots
+print('Make 30 a time series plots...')
 plot_30a_timeseries(data[clim].loc[:,'LWdn_era5'].ravel(), output_folder, clim)
 for key in y_pred:
     if location in key and 'RCP' in key:
@@ -568,6 +586,7 @@ for key in y_pred:
 
 
 # calculate yearly means
+print('Calculate yearly means...')
 calculate_yearly_means(data[clim].loc[:, 'LWdn_era5'].values, clim, f_log)
 for key in y_pred:
     if location in key and 'RCP' in key:
@@ -575,6 +594,7 @@ for key in y_pred:
 
 
 # calculate monthly means
+print('Calculate monthly means...')
 calculate_monthly_means(data[clim].loc[:,'LWdn_era5'], clim, f_log)
 for key in y_pred:
     if location in key and 'RCP' in key:
