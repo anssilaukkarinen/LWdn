@@ -3,7 +3,11 @@
 
 # ...but not these...
 !.gitignore
-!LICENCE
+!LICENCE.md
 !README.md
-!main.py
-!radpy.py
+
+!fit_and_compare.py
+!read_in_data.py
+
+!predict_future.py
+!helper.py
