@@ -3,7 +3,7 @@
 
 # ...but not these...
 !.gitignore
-!LICENCE.md
+!LICENSE.md
 !README.md
 
 !fit_and_compare.py
