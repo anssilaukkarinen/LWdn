@@ -12,7 +12,7 @@ The climatic processes in typical building applications can be categorized as fo
 - Solar radiation
 - Long-wave radiation
 
-The data from the RASMI project contains the following variables. The variable descriptions are in line with the World Meteorological Organization WMO guidelines.
+The data from the RASMI project ([Jylhä et al. (2020)]()) contains the following variables. The variable descriptions are in line with the World Meteorological Organization WMO guidelines.
 
 - Time as in normal Finnish time (winter time)
 - Outdoor air temperature at 2 m heigh from ground surface, degC, instantaneous value
@@ -64,7 +64,12 @@ For the last part, the percent change in monthly mean values were determined for
 
 As a summary, it was considered that using machine learning with reanalysis data allowed to create usable predicted values of hourly atmospheric downward long-wave radiation for future climatic conditions. These values are now provided as part of the RASMI data under the same [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.
 
-## Final report of the RAMI project
+## Final reports
+
+The final report from the RASMI project is available here:
+
+Jylhä, K., Ruosteenoja, K., Böök, H., Lindfors, A., Pirinen, P., Laapas, M. & Mäkelä, A. (2020) Nykyisen ja tulevan ilmaston säätietoja rakennusfysikaalisia laskelmia ja energialaskennan testivuotta 2020 varten. Ilmatieteen laitos. Raportteja 2020:6. ISSN 0782-6079. ISBN 978-952-336-128-7. http://hdl.handle.net/10138/321164. 81 p. [In Finnish, Abstract in English and Swedish]
+
 
 The final report of the RAMI project (Rakentamisen mitoitussäät, eng. Design weather data for Finnish climatic conditions) is available here:
 
